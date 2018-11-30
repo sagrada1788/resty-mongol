@@ -5,6 +5,7 @@ local t_concat = table.concat
 local strformat = string.format
 local strmatch = string.match
 local strbyte = string.byte
+local m_modf = math.modf
 
 local ll = require(mod_name..".ll")
 local le_uint_to_num = ll.le_uint_to_num
@@ -75,7 +76,7 @@ local function read_document ( get , numerical )
     end
 
     if numerical then
-      t [ tonumber ( e_name ) ] = v
+      t [ tonumber ( e_name ) + 1 ] = v
     else
       t [ e_name ] = v
     end
@@ -119,7 +120,12 @@ local function pack ( k , v )
   local mt = getmetatable ( v )
 
   if ot == "number" then
-    return "\1" .. k .. "\0" .. to_double ( v )
+      local _x, _y = m_modf(v)
+      if _y ~= 0 then
+        return "\1" .. k .. "\0" .. to_double ( v )
+      else
+        return "\16" .. k .. "\0" .. num_to_le_int ( v )
+      end
   elseif ot == "nil" then
     return "\10" .. k .. "\0"
   elseif ot == "string" then
@@ -183,10 +189,14 @@ function to_bson(ob)
   elseif onlyarray then
     local r = { }
 
-    local low = 0
-    --if seen_n [ 0 ] then low = 0 end
+    local low = 1
+    if seen_n [ 0 ] then low = 0 end
     for i=low , high_n do
-      r [ i ] = pack ( i , seen_n [ i ] )
+        local mongo_index = i
+        if low == 1 then
+            mongo_index = mongo_index - 1
+        end
+      r [ i ] = pack ( mongo_index , seen_n [ i ] )
     end
 
     m = t_concat ( r , "" , low , high_n )
